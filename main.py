@@ -12,8 +12,26 @@ else:
 
 os.chdir(WORK_DIR)
 sys.path.insert(0, BASE_DIR)
-# Lock in absolute path immediately
-_ABS_DATA_FILE = os.path.join(WORK_DIR, "data.json")
+
+# Data always lives in a fixed location, independent of where the
+# app/exe is launched from (so updates/rebuilds never lose data).
+DATA_DIR = os.path.join(os.path.expanduser("~"), "TransLogistData")
+os.makedirs(DATA_DIR, exist_ok=True)
+_ABS_DATA_FILE = os.path.join(DATA_DIR, "data.json")
+
+# One-time migration: if an old data.json exists next to the app
+# but nothing in the new fixed location yet, move it over.
+_old_data = os.path.join(WORK_DIR, "data.json")
+if os.path.exists(_old_data) and not os.path.exists(_ABS_DATA_FILE):
+    try:
+        import shutil as _shutil
+        _shutil.copy2(_old_data, _ABS_DATA_FILE)
+        _old_backups = os.path.join(WORK_DIR, "backups")
+        if os.path.isdir(_old_backups):
+            _shutil.copytree(_old_backups, os.path.join(DATA_DIR, "backups"),
+                              dirs_exist_ok=True)
+    except Exception:
+        pass
 
 # DPI awareness
 try:
