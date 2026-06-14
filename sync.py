@@ -39,27 +39,40 @@ class SupabaseClient:
             h.update(extra)
         return h
 
-    def _request(self, method, path, data=None, params=None):
+    def _request(self, method, path, data=None, params=None, timeout=20, retries=2):
         url = f"{self.url}{path}"
         if params:
             url += "?" + urllib.parse.urlencode(params)
         body = json.dumps(data).encode() if data else None
-        req = urllib.request.Request(url, data=body, method=method)
-        for k, v in self._headers().items():
-            req.add_header(k, v)
-        try:
-            with urllib.request.urlopen(req, timeout=10) as resp:
-                raw = resp.read()
-                return json.loads(raw) if raw else []
-        except urllib.error.HTTPError as e:
-            raw = e.read()
+        last_err = None
+        for attempt in range(retries + 1):
+            req = urllib.request.Request(url, data=body, method=method)
+            for k, v in self._headers().items():
+                req.add_header(k, v)
             try:
-                err = json.loads(raw)
-            except Exception:
-                err = {"error": str(e)}
-            return {"error": err, "status": e.code}
-        except Exception as e:
-            return {"error": str(e)}
+                with urllib.request.urlopen(req, timeout=timeout) as resp:
+                    raw = resp.read()
+                    return json.loads(raw) if raw else []
+            except urllib.error.HTTPError as e:
+                raw = e.read()
+                try:
+                    err = json.loads(raw)
+                except Exception:
+                    err = {"error": str(e)}
+                return {"error": err, "status": e.code}
+            except Exception as e:
+                last_err = e
+                if attempt < retries:
+                    continue
+        msg = str(last_err)
+        if "timed out" in msg.lower():
+            msg = ("Сервер не отвечает (превышено время ожидания).\n\n"
+                   "Возможные причины:\n"
+                   "• Антивирус или файрвол блокирует подключение программы к интернету "
+                   "(добавьте TransLogist.exe в исключения)\n"
+                   "• Нестабильное интернет-соединение — попробуйте позже\n"
+                   "• Включён VPN, который блокирует доступ — попробуйте отключить")
+        return {"error": msg}
 
     # ── Auth ──────────────────────────────────────────────────────
 
@@ -71,7 +84,8 @@ class SupabaseClient:
 
     def sign_in(self, email, password):
         data = {"email": email, "password": password}
-        return self._request("POST", "/auth/v1/token?grant_type=password", data)
+        return self._request("POST", "/auth/v1/token?grant_type=password", data,
+                              timeout=30, retries=2)
 
     def get_user(self):
         return self._request("GET", "/auth/v1/user")
