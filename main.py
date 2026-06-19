@@ -100,10 +100,26 @@ class App(tk.Tk):
         self.sync.set_user(session.get("user_id"), session.get("org_id"))
 
         self._build_ui()
+        # Auto-sync on startup (pull from server)
+        self.after(1500, self._auto_sync_on_start)
         # Check for updates 3 sec after launch (non-blocking)
         if _UPDATER_OK:
-            self.after(3000, self._check_updates)
+            self.after(4000, self._check_updates)
 
+
+    def _auto_sync_on_start(self):
+        """Auto pull data from server on startup."""
+        import threading
+        self._show_sync_status("🔄 Загрузка данных...")
+        def _run():
+            try:
+                self.sync.pull_all()
+                self.after(0, lambda: self._show_sync_status("✅ Данные загружены", success=True))
+                self.after(0, lambda: self.pages[self._current_page].refresh())
+                self.after(3000, lambda: self._show_sync_status(""))
+            except Exception:
+                self.after(0, lambda: self._show_sync_status(""))
+        threading.Thread(target=_run, daemon=True).start()
 
     def _check_updates(self):
         check_for_updates(

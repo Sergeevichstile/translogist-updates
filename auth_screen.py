@@ -6,24 +6,39 @@ import os
 from .ui_helpers import *
 from .sync import SupabaseClient
 
-SESSION_FILE = "session.json"
+def _session_path():
+    data_dir = os.path.join(os.path.expanduser("~"), "TransLogistData")
+    os.makedirs(data_dir, exist_ok=True)
+    return os.path.join(data_dir, "session.json")
 
 def load_session():
-    if os.path.exists(SESSION_FILE):
+    path = _session_path()
+    if os.path.exists(path):
         try:
-            with open(SESSION_FILE, "r") as f:
-                return json.load(f)
+            with open(path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+            # Validate session has required fields
+            if data.get("token") and data.get("email"):
+                return data
         except Exception:
             pass
     return None
 
 def save_session(data):
-    with open(SESSION_FILE, "w") as f:
-        json.dump(data, f)
+    path = _session_path()
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(data, f, ensure_ascii=False)
+    except Exception:
+        pass
 
 def clear_session():
-    if os.path.exists(SESSION_FILE):
-        os.remove(SESSION_FILE)
+    path = _session_path()
+    if os.path.exists(path):
+        try:
+            os.remove(path)
+        except Exception:
+            pass
 
 
 class AuthScreen(tk.Tk):
