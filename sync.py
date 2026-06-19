@@ -83,9 +83,31 @@ class SupabaseClient:
         return self._request("POST", "/auth/v1/signup", data)
 
     def sign_in(self, email, password):
-        data = {"email": email, "password": password}
-        return self._request("POST", "/auth/v1/token?grant_type=password", data,
-                              timeout=30, retries=2)
+        url = f"{self.url}/auth/v1/token?grant_type=password"
+        body = json.dumps({"email": email, "password": password}).encode()
+        headers = {
+            "Content-Type": "application/json",
+            "apikey": self.key,
+            "Authorization": f"Bearer {self.key}",
+        }
+        last_err = None
+        for attempt in range(3):
+            req = urllib.request.Request(url, data=body, method="POST")
+            for k, v in headers.items():
+                req.add_header(k, v)
+            try:
+                with urllib.request.urlopen(req, timeout=30) as resp:
+                    raw = resp.read()
+                    return json.loads(raw) if raw else {}
+            except urllib.error.HTTPError as e:
+                raw = e.read()
+                try:
+                    return json.loads(raw)
+                except Exception:
+                    return {"error": str(e)}
+            except Exception as e:
+                last_err = e
+        return {"error": str(last_err)}
 
     def get_user(self):
         return self._request("GET", "/auth/v1/user")
