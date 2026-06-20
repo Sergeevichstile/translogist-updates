@@ -173,10 +173,15 @@ class SyncManager:
         for i, table in enumerate(TABLES):
             records = self.db.get_all(table)
             if records:
-                # Send only known columns to avoid unknown field errors
+                # Ensure every record has the exact same set of keys
+                # (PostgREST batch upsert requires uniform columns)
+                all_keys = set()
+                for r in records:
+                    all_keys.update(r.keys())
+                all_keys.discard("org_id")
                 safe_records = []
                 for r in records:
-                    r2 = dict(r)
+                    r2 = {k: r.get(k) for k in all_keys}
                     r2["org_id"] = self.org_id
                     safe_records.append(r2)
                 result = self.client.upsert(table, safe_records)
