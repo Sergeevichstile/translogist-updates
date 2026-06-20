@@ -134,10 +134,19 @@ class App(tk.Tk):
         import threading
         def _run():
             self.sync.pull_all()
-            self.sync.push_all()
-            self.after(0, lambda: self._show_sync_status("✅ Готово", success=True))
+            result = self.sync.push_all()
+            ok = result[0] if isinstance(result, tuple) else result
+            errors = result[1] if isinstance(result, tuple) and len(result) > 1 else []
+            if ok:
+                self.after(0, lambda: self._show_sync_status("✅ Готово", success=True))
+                self.after(3000, lambda: self._show_sync_status(""))
+            else:
+                err_text = "; ".join(errors[:2]) if errors else "Неизвестная ошибка"
+                self.after(0, lambda: self._show_sync_status(f"❌ {err_text}"))
+                import tkinter.messagebox as mb
+                msg = "Не удалось загрузить данные на сервер:\n\n" + "\n".join(errors)
+                self.after(0, lambda: mb.showerror("Ошибка синхронизации", msg, parent=self))
             self.after(0, lambda: self.pages[self._current_page].refresh())
-            self.after(3000, lambda: self._show_sync_status(""))
         threading.Thread(target=_run, daemon=True).start()
 
     def _show_sync_status(self, msg, success=False):

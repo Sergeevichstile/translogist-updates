@@ -168,16 +168,23 @@ class SyncManager:
     def push_all(self, progress_callback=None):
         """Push all local data to Supabase."""
         if not self.org_id:
-            return False
+            return False, ["org_id не задан — войдите в аккаунт заново"]
         errors = []
         for i, table in enumerate(TABLES):
             records = self.db.get_all(table)
             if records:
+                # Send only known columns to avoid unknown field errors
+                safe_records = []
                 for r in records:
-                    r["org_id"] = self.org_id
-                result = self.client.upsert(table, records)
+                    r2 = dict(r)
+                    r2["org_id"] = self.org_id
+                    safe_records.append(r2)
+                result = self.client.upsert(table, safe_records)
                 if isinstance(result, dict) and "error" in result:
-                    errors.append(f"{table}: {result['error']}")
+                    err_msg = result["error"]
+                    if isinstance(err_msg, dict):
+                        err_msg = err_msg.get("message", str(err_msg))
+                    errors.append(f"{table}: {err_msg}")
             if progress_callback:
                 progress_callback(int((i+1)/len(TABLES)*100))
         return len(errors) == 0, errors
