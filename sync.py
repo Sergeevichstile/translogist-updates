@@ -147,6 +147,16 @@ class SupabaseClient:
             with urllib.request.urlopen(req, timeout=15) as resp:
                 raw = resp.read()
                 return json.loads(raw) if raw else []
+        except urllib.error.HTTPError as e:
+            raw = e.read()
+            try:
+                err_body = json.loads(raw)
+                msg = err_body.get("message") or err_body.get("error") or str(err_body)
+                detail = err_body.get("details") or err_body.get("hint") or ""
+                full_msg = f"{msg} {detail}".strip()
+            except Exception:
+                full_msg = raw.decode(errors="replace") if raw else str(e)
+            return {"error": full_msg}
         except Exception as e:
             return {"error": str(e)}
 
